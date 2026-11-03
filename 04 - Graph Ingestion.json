@@ -1,0 +1,92 @@
+{
+  "name": "04 - Graph Ingestion",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e8d71111-2680-44f8-9d33-bbec2cb7b378",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst concepts = [\n  { id: \"java\", name: \"Java\" },\n  { id: \"oop\", name: \"Object-Oriented Programming\" },\n  { id: \"http\", name: \"HTTP\" },\n  { id: \"rest\", name: \"REST API\" },\n  { id: \"sql\", name: \"SQL\" },\n  { id: \"jdbc\", name: \"JDBC\" },\n  { id: \"mvc\", name: \"MVC Architecture\" },\n  { id: \"spring\", name: \"Spring Boot\" }\n];\n\nconst relations = [\n  { from: \"java\", to: \"oop\" },\n  { from: \"java\", to: \"spring\" },\n  { from: \"oop\", to: \"spring\" },\n  { from: \"http\", to: \"rest\" },\n  { from: \"rest\", to: \"spring\" },\n  { from: \"sql\", to: \"jdbc\" },\n  { from: \"jdbc\", to: \"spring\" },\n  { from: \"mvc\", to: \"spring\" }\n];\n\nreturn [{\n  json: {\n    concepts,\n    relations\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c0465b3a-e3bd-4d28-8537-5e8ea2de6e7b",
+      "name": "Definerer begreber og relationer"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://65123fbc.databases.neo4j.io/db/65123fbc/query/v2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  statement: `\n    UNWIND $concepts AS concept\n\n    MERGE (c:Concept {id: concept.id})\n    SET c.name = concept.name\n\n    WITH count(*) AS conceptCount\n\n    UNWIND $relations AS relation\n\n    MATCH (a:Concept {id: relation.from})\n    MATCH (b:Concept {id: relation.to})\n\n    MERGE (a)-[:LEARN_BEFORE]->(b)\n\n    RETURN\n      conceptCount,\n      count(*) AS relationshipCount\n  `,\n  parameters: {\n    concepts: $json.concepts,\n    relations: $json.relations\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "927b91dc-3fa0-4612-8e5e-851a0d243871",
+      "name": "Opretter grafdata i Neo4j",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "3wdZagi0D57UiCIk",
+          "name": "NEO4J"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Definerer begreber og relationer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Definerer begreber og relationer": {
+      "main": [
+        [
+          {
+            "node": "Opretter grafdata i Neo4j",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b9d8ecd4-321c-4a8d-9cc3-b04257ef7129",
+  "meta": {
+    "instanceId": "2cd1a36988dba7340539585f92856cb600ba811445adac34f743611c519ced8a"
+  },
+  "nodeGroups": [],
+  "id": "inknHY4SDC2BtnjV",
+  "tags": []
+}

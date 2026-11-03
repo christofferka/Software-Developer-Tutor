@@ -1,0 +1,108 @@
+{
+  "name": "03 - Graph Retrieval",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conceptId"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8c8f9db6-175f-4cc0-b1a0-3aec4bb35192",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst response = $input.first().json;\n\nconst fields = response.data?.fields ?? [];\nconst rows = response.data?.values ?? [];\n\nconst results = rows.map(row => {\n  const result = {};\n\n  fields.forEach((field, index) => {\n    result[field] = row[index];\n  });\n\n  return result;\n});\n\nreturn [{\n  json: {\n    tool: \"graph_search\",\n    found: results.length > 0,\n    results,\n    message: results.length === 0\n      ? \"Concept not found in the knowledge graph.\"\n      : \"Graph relationships retrieved successfully.\"\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "aed82b75-4076-4a43-926e-3060a4dc9e9b",
+      "name": "Format Graph Results"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://65123fbc.databases.neo4j.io/db/65123fbc/query/v2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  statement: `\n    MATCH (target:Concept)\n    WHERE toLower(target.id) = toLower($conceptId)\n       OR toLower(target.name) = toLower($conceptId)\n\n    OPTIONAL MATCH\n      (before:Concept)-[:LEARN_BEFORE]->(target)\n\n    WITH target,\n         collect(DISTINCT before.name) AS prerequisites\n\n    OPTIONAL MATCH\n      (target)-[:LEARN_BEFORE]->(after:Concept)\n\n    RETURN\n      target.id AS conceptId,\n      target.name AS concept,\n      prerequisites,\n      collect(DISTINCT after.name) AS nextTopics,\n      'project-curated-learning-path' AS source\n  `,\n  parameters: {\n    conceptId: $json.conceptId\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "aa4d55e1-f5b4-4207-aa74-21ad84019b8d",
+      "name": "Search Neo4j Graph",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "3wdZagi0D57UiCIk",
+          "name": "NEO4J"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "conceptId": "spring"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Search Neo4j Graph",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Neo4j Graph": {
+      "main": [
+        [
+          {
+            "node": "Format Graph Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a7390c1b-cfa9-4ab1-9967-3cacae9d2ef4",
+  "meta": {
+    "instanceId": "2cd1a36988dba7340539585f92856cb600ba811445adac34f743611c519ced8a"
+  },
+  "nodeGroups": [],
+  "id": "qNH1yXnqpwkelm0P",
+  "tags": []
+}

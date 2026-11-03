@@ -1,0 +1,196 @@
+{
+  "name": "01 - Knowledge Ingestion",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "20c2d3cf-c455-450e-ba70-2bdce52b665c",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst documents = [\n  {\n    docId: \"java-guide\",\n    title: \"Introduction to Java\",\n    chunkId: \"java-01\",\n    position: 1,\n    text: \"Java is an object-oriented programming language. It uses classes, objects, methods and variables. Java is commonly used to build backend applications and enterprise software.\",\n    conceptIds: [\"java\", \"oop\"]\n  },\n  {\n    docId: \"oop-guide\",\n    title: \"Object-Oriented Programming\",\n    chunkId: \"oop-01\",\n    position: 1,\n    text: \"Object-oriented programming organizes software using classes and objects. Important principles include encapsulation, inheritance, polymorphism and abstraction.\",\n    conceptIds: [\"oop\", \"java\"]\n  },\n  {\n    docId: \"http-guide\",\n    title: \"Understanding HTTP\",\n    chunkId: \"http-01\",\n    position: 1,\n    text: \"HTTP is a protocol used for communication between clients and servers. Requests use methods such as GET, POST, PUT and DELETE. Responses include status codes such as 200 and 404.\",\n    conceptIds: [\"http\", \"rest\"]\n  },\n  {\n    docId: \"rest-guide\",\n    title: \"REST API Fundamentals\",\n    chunkId: \"rest-01\",\n    position: 1,\n    text: \"A REST API exposes resources through HTTP endpoints. Clients use HTTP methods to retrieve, create, update and delete resources. REST commonly uses JSON for data exchange.\",\n    conceptIds: [\"rest\", \"http\", \"spring\"]\n  },\n  {\n    docId: \"sql-guide\",\n    title: \"Introduction to SQL\",\n    chunkId: \"sql-01\",\n    position: 1,\n    text: \"SQL is used to manage relational databases. SELECT retrieves data, INSERT adds records, UPDATE modifies records and DELETE removes records. JOIN combines related tables.\",\n    conceptIds: [\"sql\"]\n  },\n  {\n    docId: \"jdbc-guide\",\n    title: \"Java Database Connectivity\",\n    chunkId: \"jdbc-01\",\n    position: 1,\n    text: \"JDBC allows Java applications to communicate with relational databases. Developers can execute SQL statements using JDBC connections and prepared statements.\",\n    conceptIds: [\"jdbc\", \"java\", \"sql\"]\n  },\n  {\n    docId: \"mvc-guide\",\n    title: \"MVC Architecture\",\n    chunkId: \"mvc-01\",\n    position: 1,\n    text: \"Model View Controller separates applications into three responsibilities. The Model manages data and business logic, the View handles presentation and the Controller processes requests.\",\n    conceptIds: [\"mvc\", \"spring\"]\n  },\n  {\n    docId: \"spring-guide\",\n    title: \"Spring Boot Fundamentals\",\n    chunkId: \"spring-01\",\n    position: 1,\n    text: \"Spring Boot is a Java framework for building web applications and REST APIs. It provides dependency injection, automatic configuration and integration with databases.\",\n    conceptIds: [\"spring\", \"java\", \"rest\", \"jdbc\"]\n  }\n];\n\nreturn documents.map(doc => ({\n  json: {\n    ...doc,\n    source: \"project-created-seed-data\"\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "3af43f05-c1df-4b4a-98dc-fc497a76fa81",
+      "name": "Prepare Documents"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://65123fbc.databases.neo4j.io/db/65123fbc/query/v2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "=json",
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "=\n{{ JSON.stringify({\n  statement: `\n    MERGE (d:Document {id: $docId})\n    SET d.title = $title,\n        d.source = $source\n\n    MERGE (c:Chunk {id: $chunkId})\n    SET c.text = $text,\n        c.position = $position,\n        c.source = $source\n\n    MERGE (d)-[:HAS_CHUNK]->(c)\n\n    WITH c\n    UNWIND $conceptIds AS conceptId\n\n    MATCH (k:Concept {id: conceptId})\n    MERGE (c)-[:ABOUT]->(k)\n\n    RETURN c.id AS chunkId,\n           collect(k.name) AS concepts\n  `,\n  parameters: $json\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "f4cc8b57-8d4b-4742-8cb5-4e4ce1c00491",
+      "name": "Save Documents to Neo4j",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "3wdZagi0D57UiCIk",
+          "name": "NEO4J"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst docs = $('Prepare Documents')\n  .all()\n  .map(item => item.json);\n\nreturn [{\n  json: {\n    documents: docs.map(doc => ({\n      chunkId: doc.chunkId,\n      text: doc.text\n    })),\n    texts: docs.map(doc => doc.text)\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "f9cfa9a1-624f-4834-ad9c-85488dc02409",
+      "name": "Prepare Embedding Batch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai.mongodb.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  model: \"voyage-4-lite\",\n  input: $json.texts,\n  input_type: \"document\",\n  output_dimension: 1024\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        864,
+        0
+      ],
+      "id": "62d6557e-e793-4eea-878c-c0dedbe6afb5",
+      "name": "Generate Voyage Embeddings",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "NbZR4L74hk8KkV3R",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://65123fbc.databases.neo4j.io/db/65123fbc/query/v2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  statement: \"UNWIND $rows AS row MATCH (c:Chunk {id: row.chunkId}) SET c.embedding = row.embedding, c.embeddingModel = $model RETURN count(c) AS updatedChunks\",\n  parameters: {\n    model: \"voyage-4-lite\",\n    rows: $('Prepare Embedding Batch')\n      .first()\n      .json\n      .documents\n      .map((doc, i) => ({\n        chunkId: doc.chunkId,\n        embedding: $json.data.find(\n          e => e.index === i\n        ).embedding\n      }))\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "1fac4030-2793-4a5f-929f-df954a51fe85",
+      "name": "Save Embeddings to Neo4j",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "3wdZagi0D57UiCIk",
+          "name": "NEO4J"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Documents": {
+      "main": [
+        [
+          {
+            "node": "Save Documents to Neo4j",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Documents to Neo4j": {
+      "main": [
+        [
+          {
+            "node": "Prepare Embedding Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Embedding Batch": {
+      "main": [
+        [
+          {
+            "node": "Generate Voyage Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Voyage Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Save Embeddings to Neo4j",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f5b252d2-c11f-46f5-b1a8-2e586a272e6d",
+  "meta": {
+    "instanceId": "2cd1a36988dba7340539585f92856cb600ba811445adac34f743611c519ced8a"
+  },
+  "nodeGroups": [],
+  "id": "sPy5sbKIXJF0TJHd",
+  "tags": []
+}

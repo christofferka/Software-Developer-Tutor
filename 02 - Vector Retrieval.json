@@ -1,0 +1,145 @@
+{
+  "name": "02 - Vector Retrieval",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "question"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "329ade16-80da-43e5-bf0a-0e18e06f3564",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst response = $input.first().json;\n\nconst fields = response.data?.fields ?? [];\nconst values = response.data?.values ?? [];\n\nconst results = values.map(row => {\n  const item = {};\n\n  fields.forEach((field, index) => {\n    item[field] = row[index];\n  });\n\n  return item;\n});\n\nreturn [{\n  json: {\n    tool: \"vector_search\",\n    count: results.length,\n    results: results\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        0
+      ],
+      "id": "768c428c-74b9-4337-b523-db4535cdf81c",
+      "name": "Format Vector Results"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://65123fbc.databases.neo4j.io/db/65123fbc/query/v2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  statement: `\n    CALL db.index.vector.queryNodes(\n      'chunk_embeddings',\n      3,\n      $embedding\n    )\n    YIELD node, score\n\n    OPTIONAL MATCH\n      (d:Document)-[:HAS_CHUNK]->(node)\n\n    OPTIONAL MATCH\n      (node)-[:ABOUT]->(k:Concept)\n\n    RETURN\n      node.id AS chunkId,\n      node.text AS content,\n      d.id AS documentId,\n      d.title AS title,\n      d.source AS source,\n      score AS similarity,\n      collect(DISTINCT k.name) AS topics\n\n    ORDER BY similarity DESC\n  `,\n  parameters: {\n    embedding: $json.data[0].embedding\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "40c8e0dd-2bca-46b4-b2bd-a6d00d3ca7ad",
+      "name": "Search Neo4j Vectors",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "3wdZagi0D57UiCIk",
+          "name": "NEO4J"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai.mongodb.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\n{{ JSON.stringify({\n  model: \"voyage-4-lite\",\n  input: [$json.question],\n  input_type: \"query\",\n  output_dimension: 1024\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "0e8b2aef-537f-4146-96fc-c263fde320e0",
+      "name": "Embed Question",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EusGz8OMdMMjjirB",
+          "name": "Voyage Header"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "question": "How can Java connect to a SQL database?"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Embed Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Neo4j Vectors": {
+      "main": [
+        [
+          {
+            "node": "Format Vector Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Question": {
+      "main": [
+        [
+          {
+            "node": "Search Neo4j Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1a3926e4-d44f-4c9f-a827-96fd776fdd25",
+  "meta": {
+    "instanceId": "2cd1a36988dba7340539585f92856cb600ba811445adac34f743611c519ced8a"
+  },
+  "nodeGroups": [],
+  "id": "K5xLgaBDMVghjUSx",
+  "tags": []
+}
