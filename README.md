@@ -1,124 +1,348 @@
-# Software Development Tutor: Neo4j Vector + Graph RAG
+# Software Development Tutor
 
-## Project overview
-This project demonstrates Retrieval-Augmented Generation (RAG) using both semantic similarity and explicit graph relationships. The case is a software development tutor for students who want to learn Java, Spring Boot, SQL, HTTP, REST, JDBC, OOP, and MVC.
+## About the project
 
-**Vector retrieval** identifies semantically relevant explanations from short educational texts. **Graph retrieval** finds explicit prerequisite and follow-up concept relationships. The **Claude** agent can use either tool or both, depending on the question, and should cite the retrieved sources.
+This project is an AI tutor that helps students learn software development. You can ask questions about Java, SQL, JDBC, REST APIs, MVC and Spring Boot.
 
-## Architecture
+The tutor can explain programming concepts, find relevant learning material and show how different topics are connected.
 
-```text
-Self-authored text + curated concept relationships
-           |                       |
-           v                       v
-01 Knowledge Ingestion        04 Graph Ingestion
-  n8n -> Neo4j docs/chunks     n8n -> Neo4j concepts/edges
-  n8n -> Voyage embeddings     (LEARN_BEFORE)
-           |                       |
-           +-----------+-----------+
-                       v
-             Neo4j AuraDB (same DB)
-             Vector index + graph
-                       ^
-           +-----------+-----------+
-           |                       |
-   02 Vector Retrieval       03 Graph Retrieval
-   Voyage query embedding    Cypher graph traversal
-           |                       |
-           +----------+------------+
-                      v
-              n8n Agents Builder
-              Claude Sonnet agent
-                      ^
-                 User questions
-```
+The project uses both **Vector RAG and Graph RAG**.
 
-## Stack
-- **Orchestration:** n8n Cloud, workflow nodes and Agents Builder
-- **Database:** Neo4j AuraDB, shared for graph nodes and embeddings
-- **Embeddings:** Voyage AI `voyage-4-lite`, 1024-dimensional vectors
-- **Agent:** Anthropic Claude (`claude-sonnet-4-6` observed during development; check final configuration)
-- **HTTP integration:** n8n HTTP Request to Neo4j Query API and Voyage Embeddings API
+RAG stands for Retrieval-Augmented Generation. This means the AI searches for information before answering a question.
 
-## Repository contents
-- `workflows/`: export of the 4 actual n8n workflows (**add your exported JSON files here**)
-- `screenshots/`: readable overview of all workflows, agent tool connections, and real test/tool-call screenshots (**add your actual screenshots here**)
-- `agent/agent-config.md`: model and configuration notes
-- `agent/system-prompt.md`: proposed agent prompt; check it matches the actual one in n8n
-- `agent/tool-descriptions.md`: workflow tool inputs, outputs, when to use each
-- `data/documents.json`: eight self-authored text samples and metadata
-- `data/graph-data.json`: eight concepts and eight curated prerequisite relationships
-- `data/setup.cypher`: database constraints, vector index and checks
-- `tests/evaluation-template.md`: template for documenting three *actual* agent runs, tool calls, retrieved information, answers, assessments, and observed failure/limitation
+The two search methods work differently:
 
-## Database model
+- **Vector Search:** Finds learning material based on meaning. For example, if someone asks how Java connects to a database, it can find the JDBC document even if the question does not mention JDBC.
+- **Graph Search:** Finds connections between programming topics. For example, it can show which concepts a student should learn before Spring Boot.
 
-| Node | Properties | Role |
-|---|---|---|
-| `Concept` | `id`, `name` | Technical topic |
-| `Document` | `id`, `title`, `source` | Original educational item |
-| `Chunk` | `id`, `text`, `position`, `source`, `embedding`, `embeddingModel` | Text section and semantic vector |
+The AI tutor uses Claude. It decides which search tool to use and combines the information to answer the student's question.
 
-Relationships:
-- `(Document)-[:HAS_CHUNK]->(Chunk)` links text to its source.
-- `(Chunk)-[:ABOUT]->(Concept)` connects text to course topics.
-- `(Concept)-[:LEARN_BEFORE]->(Concept)` represents a curated learning prerequisite.
+## Technologies Used
 
-Eight documents currently contain one chunk each. `project-created-seed-data` identifies our own sample content; `project-curated-learning-path` identifies our own prerequisite graph.
+| Technology | Purpose |
+|---|---|
+| n8n Cloud | Building and running workflows |
+| n8n Agents Builder | Creating the AI tutor |
+| Claude Sonnet 4.6 | AI model used by the tutor |
+| Neo4j AuraDB | Graph database and vector database |
+| Voyage AI | Creating text embeddings |
+| HTTP Requests | Connecting n8n with the APIs |
 
-## Reproduce the project
-1. Create an empty Neo4j AuraDB instance. Record the **actual database name, URI and username** provided by Aura. Do not assume the name is `neo4j`.
-2. Run `data/setup.cypher` (or execute the statements individually) to create constraints and `chunk_embeddings`, a cosine index for 1024-dimensional embeddings.
-3. Create n8n credentials for Neo4j HTTP Basic Auth and Voyage API Bearer Header Auth. Create an Anthropic API credential for the agent. **Never commit secrets.**
-4. Import the exported JSON workflow files from `workflows/`. Update API endpoint URLs, credential references, node names and input schemas to match your environment.
-5. Run `04 - Graph Ingestion` first to create the eight `Concept` nodes and their `LEARN_BEFORE` relationships. This matters because document ingestion references the concepts.
-6. Run `01 - Knowledge Ingestion` to insert eight documents and their chunks, connect chunks to concepts, generate all embeddings with Voyage and write them to Neo4j. Texts are batched into a single Voyage API request to stay within API request limits.
-7. Verify graph counts and embeddings using the checks below. Verify the vector index is `ONLINE` with 1024 dimensions.
-8. Make `02 - Vector Retrieval` and `03 - Graph Retrieval` available as callable sub-workflows, with required input fields `question` and `conceptId` respectively.
-9. Create or configure the Software Development Tutor in n8n Agents Builder. Connect Anthropic Claude and both retrieval workflows as tools, and copy the final prompt and descriptions from `agent/`. Confirm the model and publish state in the actual editor.
-10. Run three live agent tests and save actual inputs, outputs, tool traces, cited sources and your assessments under `tests/` and `screenshots/`.
+Both Vector RAG and Graph RAG use the same Neo4j database.
 
-### Verification queries
+## How the System Works
 
-```cypher
-MATCH (c:Concept) RETURN count(c) AS concepts;
-```
-Expected for the seed dataset: `8`.
+The student asks the AI tutor a question.
 
-```cypher
-MATCH ()-[r:LEARN_BEFORE]->() RETURN count(r) AS relationships;
-```
-Expected for the seed dataset: `8`.
+Claude then decides which tool to use.
 
-```cypher
-MATCH (d:Document) RETURN count(d) AS documents;
-```
-Expected: `8`.
+**Vector Search:**
+1. The question is sent to Voyage AI.
+2. Voyage AI converts it into an embedding.
+3. Neo4j searches for similar embeddings.
+4. The most relevant documents are returned to Claude.
 
-```cypher
-MATCH (c:Chunk)
-RETURN count(c) AS totalChunks,
-       count(c.embedding) AS embeddedChunks,
-       collect(DISTINCT size(c.embedding)) AS dimensions;
-```
-Expected after ingestion: `8`, `8`, `[1024]`.
+**Graph Search:**
+1. Claude identifies the programming topic.
+2. Neo4j searches for related concepts.
+3. The relationships are returned to Claude.
 
-```cypher
-SHOW VECTOR INDEXES;
-```
-Check index `chunk_embeddings` is `ONLINE` and has 1024 dimensions.
+Claude uses the retrieved information to answer the student's question and provide sources.
 
-## Retrieval tools
+For questions that require both explanations and relationships, Claude can use both tools.
 
-| Tool | Input | Function | Return |
-|---|---|---|---|
-| `vector_search` | `question: string` | Embeds the query using Voyage and returns matching Neo4j chunks | Content, document title, source, score, topics |
-| `graph_search` | `conceptId: string` | Traverses direct `LEARN_BEFORE` links | Concept, prerequisites, next topics, graph source |
+## Project Files
 
-## Evaluation and limitations
-See `tests/evaluation-template.md` and the **actual** run screenshots for three demonstrations: vector-only style question, prerequisite graph question, and a question requiring both tools. Each submitted test must document retrieved information, tool calls, actual agent response, and a short assessment.
+The repository contains four n8n workflows, their screenshots, the agent configuration, data files and three tests.
 
-Main limitations: very small self-authored dataset; only one short chunk per document; manually curated direct learning relations; no independent authoritative source verification; retrieval quality cannot be inferred from workflow success alone. An observed failure or limitation must be recorded from actual testing.
+### Workflows
 
-## Security
-Secrets are held in n8n credentials. Do not include raw Anthropic, Voyage, or Neo4j credentials in screenshots or JSON exports. Neo4j AuraDB instance IDs and account details can also be removed from publicly shared artifacts if unnecessary.
+| File | Description |
+|---|---|
+| `01 - Knowledge Ingestion.json` | Imports learning material and creates embeddings |
+| `02 - Vector Retrieval.json` | Searches for relevant documents |
+| `03 - Graph Retrieval.json` | Searches for relationships between topics |
+| `04 - Graph Ingestion.json` | Creates concepts and relationships in Neo4j |
+
+Each workflow also has a screenshot:
+
+- `01 - Workflow Screenshot.png`
+- `02 - Workflow Screenshot.png`
+- `03 - Workflow Screenshot.png`
+- `04 - Workflow Screenshot.png`
+
+### Other Files
+
+**agent/**
+
+Contains information about the AI agent, including its model, instructions and tool descriptions.
+
+**data/**
+
+Contains the sample data and information needed to recreate the Neo4j database.
+
+**Test 1.pdf**
+
+Shows the Vector RAG test.
+
+**Test 2.pdf**
+
+Shows the Graph RAG test.
+
+**Test 3.pdf**
+
+Shows the combined Vector and Graph RAG test.
+
+**Evaluation.md**
+
+Contains my evaluation of the three tests, including what worked, what failed and what I would improve.
+
+## The Four Workflows
+
+### 01. Knowledge Ingestion
+
+This workflow adds learning material to Neo4j.
+
+It starts with eight short documents about different programming topics.
+
+The workflow:
+
+1. Prepares the documents.
+2. Saves them in Neo4j.
+3. Sends the text to Voyage AI.
+4. Receives embeddings.
+5. Saves the embeddings in Neo4j.
+
+Each document has a title, ID, text and source information.
+
+I used one chunk per document because the texts are already quite short.
+
+The embeddings are created with the `voyage-4-lite` model and have 1,024 dimensions.
+
+### 02. Vector Retrieval
+
+This workflow searches for relevant learning material.
+
+It receives a question, converts it into an embedding using Voyage AI and searches Neo4j for similar documents.
+
+It returns the three most relevant text chunks, including their titles, sources and similarity scores.
+
+Claude uses this tool when a student asks for explanations or learning material.
+
+### 03. Graph Retrieval
+
+This workflow searches the relationships between programming topics.
+
+For example, when searching for Spring Boot, it can return the concepts that should be learned first.
+
+It uses Cypher queries to search Neo4j.
+
+Claude uses this tool when a student asks about prerequisites, learning paths or connections between topics.
+
+### 04. Graph Ingestion
+
+This workflow creates the programming concepts and their relationships in Neo4j.
+
+The graph currently contains eight concepts and eight `LEARN_BEFORE` relationships.
+
+The workflow uses `MERGE` to avoid creating duplicate nodes and relationships when it runs again.
+
+## Data and Database Structure
+
+The project uses eight short learning documents:
+
+1. Introduction to Java
+2. Object-Oriented Programming
+3. Understanding HTTP
+4. REST API Fundamentals
+5. Introduction to SQL
+6. Java Database Connectivity
+7. MVC Architecture
+8. Spring Boot Fundamentals
+
+These texts were written for this project. They are not taken from external textbooks.
+
+### Node Types
+
+| Node | Description |
+|---|---|
+| Document | Stores the document title and source |
+| Chunk | Stores the text and its embedding |
+| Concept | Represents a programming topic |
+
+### Relationship Types
+
+| Relationship | Description |
+|---|---|
+| HAS_CHUNK | Connects a document to its text |
+| ABOUT | Connects a text to a programming topic |
+| LEARN_BEFORE | Shows which topic should be learned before another |
+
+The graph contains eight programming concepts and eight learning relationships.
+
+These relationships are recommendations made for this project, not an official learning curriculum.
+
+## AI Agent
+
+The agent is called **Software Development Tutor**.
+
+It was created using n8n Agents Builder and uses `claude-sonnet-4-6`.
+
+The agent has two tools:
+
+**Vector Retrieval**
+
+Input: `question`
+
+Searches the learning documents and returns relevant text, document titles and sources.
+
+**Graph Retrieval**
+
+Input: `conceptId`
+
+Searches for a programming concept and returns its prerequisites and related topics.
+
+The agent is instructed to use the tools when answering questions about the available course material.
+
+It should also include sources and explain when it does not have enough information to answer a question.
+
+The complete agent instructions and tool descriptions are included in the `agent/` folder.
+
+No additional agent skills were used.
+
+## How to Set Up the Project
+
+### 1. Create a Neo4j Database
+
+Create a free Neo4j AuraDB instance.
+
+Save the connection URI, database name, username and password.
+
+### 2. Set Up the Database
+
+Create the necessary database indexes, including the vector index for embeddings with 1,024 dimensions.
+
+Use the setup information in the `data/` folder.
+
+### 3. Import the Workflows
+
+Import the four JSON files into n8n.
+
+### 4. Add API Credentials
+
+Add the following credentials in n8n:
+
+- Neo4j database credentials
+- Voyage AI API key
+- Anthropic API key for Claude
+
+The API keys and passwords are not included in the repository.
+
+### 5. Run the Ingestion Workflows
+
+Run the workflows in this order:
+
+1. `04 - Graph Ingestion`
+2. `01 - Knowledge Ingestion`
+
+The first workflow creates the concepts and relationships.
+
+The second workflow imports the documents and generates embeddings.
+
+### 6. Configure the AI Agent
+
+Create an agent in n8n Agents Builder.
+
+Select Claude as the model and connect the two retrieval workflows as tools.
+
+Use the instructions and tool descriptions from the `agent/` folder.
+
+### 7. Test the Agent
+
+Use the questions from the three test PDFs to check that the agent can retrieve information and answer correctly.
+
+## Testing
+
+I tested the agent with three different questions.
+
+### Test 1: Vector RAG
+
+**Question:**
+
+How can I connect a Java application to a relational database? Explain the process using the available learning material.
+
+**Result:**
+
+The agent found the JDBC document even though the question did not mention JDBC.
+
+It also found information about SQL and Spring Boot. The answer explained how Java connects to databases and included references to the learning material.
+
+The agent also used the graph tool to show the relationship between SQL, JDBC and Spring Boot.
+
+### Test 2: Graph RAG
+
+**Question:**
+
+What concepts should I learn before Spring Boot according to the knowledge graph?
+
+**Result:**
+
+The agent first searched for `spring-boot`, but that ID did not exist in the graph.
+
+It then searched for `spring` and found the correct information.
+
+The answer included all five prerequisites stored in Neo4j: Java, OOP, REST API, JDBC and MVC Architecture.
+
+### Test 3: Combined RAG
+
+**Question:**
+
+I already know Java and SQL. I want to learn Spring Boot. What other concepts should I study first, and can you explain how they relate to Spring Boot using the course material?
+
+**Result:**
+
+The agent used both Vector Retrieval and Graph Retrieval.
+
+It found the prerequisites for Spring Boot and retrieved learning material to explain them.
+
+However, some additional vector searches failed because the Voyage AI API rate limit was reached.
+
+The agent still produced a useful answer using the information it had already retrieved.
+
+The full test results and screenshots are included in `Test 1.pdf`, `Test 2.pdf` and `Test 3.pdf`.
+
+My assessment of the results is included in `Evaluation.md`.
+
+## Limitations and Improvements
+
+The project works as a small prototype, but there are still some limitations.
+
+**Limited learning material**
+
+The database only contains eight short documents. This is enough to demonstrate RAG, but not enough for a complete programming tutor.
+
+**Topic names**
+
+The graph search depends on matching concept names or IDs. During testing, `spring-boot` did not work, while `spring` did.
+
+This could be improved by supporting alternative names.
+
+**API rate limits**
+
+Voyage AI has request limits. During the combined test, several requests failed because too many searches were made within a short period.
+
+I would improve this by adding better retry handling and controlling how often requests are sent.
+
+**Manual data updates**
+
+The ingestion workflows are started manually and use predefined data. A future version could automatically import new documents.
+
+## Conclusion
+
+The project shows how Vector RAG and Graph RAG can work together in an AI application.
+
+Vector Search helps Claude find relevant explanations, while Graph Search helps it understand how programming topics are connected.
+
+The tests show that the agent can use both tools to answer questions and recommend learning material.
+
+There are still some limitations, especially the small amount of data and the API rate limits, but the project works as a prototype and demonstrates how the two retrieval methods can support each other.
