@@ -1,0 +1,70 @@
+{
+  "concepts": [
+    {
+      "id": "java",
+      "name": "Java"
+    },
+    {
+      "id": "oop",
+      "name": "Object-Oriented Programming"
+    },
+    {
+      "id": "http",
+      "name": "HTTP"
+    },
+    {
+      "id": "rest",
+      "name": "REST API"
+    },
+    {
+      "id": "sql",
+      "name": "SQL"
+    },
+    {
+      "id": "jdbc",
+      "name": "JDBC"
+    },
+    {
+      "id": "mvc",
+      "name": "MVC Architecture"
+    },
+    {
+      "id": "spring",
+      "name": "Spring Boot"
+    }
+  ],
+  "relations": [
+    {
+      "from": "java",
+      "to": "oop"
+    },
+    {
+      "from": "java",
+      "to": "spring"
+    },
+    {
+      "from": "oop",
+      "to": "spring"
+    },
+    {
+      "from": "http",
+      "to": "rest"
+    },
+    {
+      "from": "rest",
+      "to": "spring"
+    },
+    {
+      "from": "sql",
+      "to": "jdbc"
+    },
+    {
+      "from": "jdbc",
+      "to": "spring"
+    },
+    {
+      "from": "mvc",
+      "to": "spring"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+[
+  {
+    "docId": "java-guide",
+    "title": "Introduction to Java",
+    "chunkId": "java-01",
+    "position": 1,
+    "text": "Java is an object-oriented programming language. It uses classes, objects, methods and variables. Java is commonly used to build backend applications and enterprise software.",
+    "conceptIds": [
+      "java",
+      "oop"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "oop-guide",
+    "title": "Object-Oriented Programming",
+    "chunkId": "oop-01",
+    "position": 1,
+    "text": "Object-oriented programming organizes software using classes and objects. Important principles include encapsulation, inheritance, polymorphism and abstraction.",
+    "conceptIds": [
+      "oop",
+      "java"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "http-guide",
+    "title": "Understanding HTTP",
+    "chunkId": "http-01",
+    "position": 1,
+    "text": "HTTP is a protocol used for communication between clients and servers. Requests use methods such as GET, POST, PUT and DELETE. Responses include status codes such as 200 and 404.",
+    "conceptIds": [
+      "http",
+      "rest"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "rest-guide",
+    "title": "REST API Fundamentals",
+    "chunkId": "rest-01",
+    "position": 1,
+    "text": "A REST API exposes resources through HTTP endpoints. Clients use HTTP methods to retrieve, create, update and delete resources. REST commonly uses JSON for data exchange.",
+    "conceptIds": [
+      "rest",
+      "http",
+      "spring"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "sql-guide",
+    "title": "Introduction to SQL",
+    "chunkId": "sql-01",
+    "position": 1,
+    "text": "SQL is used to manage relational databases. SELECT retrieves data, INSERT adds records, UPDATE modifies records and DELETE removes records. JOIN combines related tables.",
+    "conceptIds": [
+      "sql"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "jdbc-guide",
+    "title": "Java Database Connectivity",
+    "chunkId": "jdbc-01",
+    "position": 1,
+    "text": "JDBC allows Java applications to communicate with relational databases. Developers can execute SQL statements using JDBC connections and prepared statements.",
+    "conceptIds": [
+      "jdbc",
+      "java",
+      "sql"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "mvc-guide",
+    "title": "MVC Architecture",
+    "chunkId": "mvc-01",
+    "position": 1,
+    "text": "Model View Controller separates applications into three responsibilities. The Model manages data and business logic, the View handles presentation and the Controller processes requests.",
+    "conceptIds": [
+      "mvc",
+      "spring"
+    ],
+    "source": "project-created-seed-data"
+  },
+  {
+    "docId": "spring-guide",
+    "title": "Spring Boot Fundamentals",
+    "chunkId": "spring-01",
+    "position": 1,
+    "text": "Spring Boot is a Java framework for building web applications and REST APIs. It provides dependency injection, automatic configuration and integration with databases.",
+    "conceptIds": [
+      "spring",
+      "java",
+      "rest",
+      "jdbc"
+    ],
+    "source": "project-created-seed-data"
+  }
+]
